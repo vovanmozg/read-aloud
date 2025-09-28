@@ -44,6 +44,10 @@
           <select id="lang" title="Выбор языка"></select>
         </div>
         <div class="group">
+          <label for="voice">Голос:</label>
+          <select id="voice" title="Выбор голоса" disabled></select>
+        </div>
+        <div class="group">
           <label for="rate">Скорость: <span id="rateVal">1.0×</span></label>
           <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1" />
         </div>
@@ -69,6 +73,7 @@
     (function(){
       const textEl = document.getElementById('text');
       const langEl = document.getElementById('lang');
+      const voiceEl = document.getElementById('voice');
       const rateEl = document.getElementById('rate');
       const rateVal = document.getElementById('rateVal');
       const playBtn = document.getElementById('play');
@@ -89,9 +94,59 @@
       let totalChars = 0;
       let spokenChars = 0;
 
+      function populateVoiceOptions(langCode, preferredVoiceURI){
+        if(!voices || !voices.length){
+          voiceEl.innerHTML = '';
+          voiceEl.disabled = true;
+          return;
+        }
+
+        const base = langCode ? langCode.split('-')[0] : '';
+        const options = voices.filter(v=>{
+          if(!langCode) return true;
+          if(v.lang === langCode) return true;
+          if(base && v.lang && v.lang.startsWith(base+'-')) return true;
+          return false;
+        });
+
+        voiceEl.innerHTML = '';
+
+        if(!options.length){
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'По умолчанию браузера';
+          voiceEl.appendChild(opt);
+          voiceEl.disabled = true;
+          voiceEl.value = '';
+          return;
+        }
+
+        options.sort((a,b)=>{
+          if(a.default && !b.default) return -1;
+          if(!a.default && b.default) return 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        options.forEach(voice=>{
+          const opt = document.createElement('option');
+          opt.value = voice.voiceURI;
+          opt.textContent = `${voice.name} (${voice.lang})${voice.default ? ' (по умолчанию)' : ''}`;
+          opt.dataset.lang = voice.lang;
+          voiceEl.appendChild(opt);
+        });
+
+        const fallback = options.find(v=>v.voiceURI===preferredVoiceURI)
+          || options.find(v=>v.default && (!langCode || v.lang === langCode || v.lang.startsWith(base+'-')))
+          || options[0];
+        voiceEl.disabled = false;
+        if(fallback) voiceEl.value = fallback.voiceURI;
+      }
+
       function loadVoices(){
         voices = window.speechSynthesis.getVoices();
         if(!voices || !voices.length) return;
+        const previousLang = langEl.value;
+        const previousVoice = voiceEl.value;
         // Список уникальных языков, предпочтительно с локалью (ru-RU, en-US и т.д.)
         const langs = new Map();
         voices.forEach(v=>{ if(!langs.has(v.lang)) langs.set(v.lang, v); });
@@ -107,10 +162,11 @@
           opt.value = code; opt.textContent = code;
           langEl.appendChild(opt);
         });
-        // Выберем язык интерфейса, если доступен
         const ui = navigator.language || 'ru-RU';
-        const idx = sorted.indexOf(ui);
-        langEl.value = idx>=0 ? ui : (sorted.includes('ru-RU') ? 'ru-RU' : sorted[0]);
+        const defaultLang = sorted.includes(ui) ? ui : (sorted.includes('ru-RU') ? 'ru-RU' : sorted[0]);
+        const selectedLang = sorted.includes(previousLang) ? previousLang : defaultLang;
+        langEl.value = selectedLang;
+        populateVoiceOptions(selectedLang, selectedLang === previousLang ? previousVoice : undefined);
       }
 
       if(supportsSpeech){
@@ -119,6 +175,10 @@
         // и сразу пробуем
         loadVoices();
       }
+
+      langEl.addEventListener('change', ()=>{
+        populateVoiceOptions(langEl.value, voiceEl.value);
+      });
 
       rateEl.addEventListener('input', ()=>{
         rateVal.textContent = rateEl.value + '×';
@@ -169,6 +229,15 @@
         return voices.find(v=>v.lang.startsWith(prefix)) || null;
       }
 
+      function getSelectedVoice(){
+        if(!voices || !voices.length) return null;
+        if(voiceEl.value){
+          const byUri = voices.find(v=>v.voiceURI===voiceEl.value);
+          if(byUri) return byUri;
+        }
+        return getVoiceByLang(langEl.value);
+      }
+
       function setUIState(state){
         // states: idle, speaking, paused
         if(state==='idle'){
@@ -196,7 +265,7 @@
         currentIndex = 0; speaking = true;
         totalChars = queue.join('').length; spokenChars = 0; updateProgress();
 
-        const voice = getVoiceByLang(langEl.value);
+        const voice = getSelectedVoice();
         const rate = parseFloat(rateEl.value) || 1;
 
         function speakNext(){
