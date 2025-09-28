@@ -88,6 +88,7 @@
       let queue = [];
       let currentIndex = 0;
       let speaking = false;
+      let isPaused = false;
       let totalChars = 0;
       let spokenChars = 0;
 
@@ -262,7 +263,7 @@
 
         window.speechSynthesis.cancel();
         queue = splitIntoChunks(text, 220);
-        currentIndex = 0; speaking = true;
+        currentIndex = 0; speaking = true; isPaused = false;
         totalChars = queue.join('').length; spokenChars = 0; updateProgress();
 
         const voice = getSelectedVoice();
@@ -270,18 +271,26 @@
 
         function speakNext(){
           if(currentIndex >= queue.length){
-            speaking=false; setUIState('idle'); return; }
+            speaking=false; isPaused=false; setUIState('idle'); return; }
           const utter = new SpeechSynthesisUtterance(queue[currentIndex]);
           if(voice) utter.voice = voice;
           utter.lang = langEl.value; // задаём язык
           utter.rate = rate; // скорость
           utter.onend = () => {
+            if(!speaking) return;
             spokenChars += queue[currentIndex].length; updateProgress();
-            currentIndex++; speakNext();
+            if(!isPaused){
+              currentIndex++;
+              speakNext();
+            }
           };
           utter.onerror = (e) => {
             console.error('TTS error', e);
-            currentIndex++; speakNext();
+            if(!speaking) return;
+            if(!isPaused){
+              currentIndex++;
+              speakNext();
+            }
           };
           // Опционально, можно подстраивать прогресс по словам
           utter.onboundary = (ev)=>{
@@ -297,9 +306,25 @@
         speakNext();
       }
 
-      function pause(){ if(speaking && !window.speechSynthesis.paused){ window.speechSynthesis.pause(); setUIState('paused'); } }
-      function resume(){ if(speaking && window.speechSynthesis.paused){ window.speechSynthesis.resume(); setUIState('speaking'); } }
-      function stop(){ window.speechSynthesis.cancel(); speaking=false; setUIState('idle'); resetProgress(); }
+      function pause(){
+        if(!speaking || isPaused) return;
+        window.speechSynthesis.pause();
+        isPaused = true;
+        setUIState('paused');
+      }
+      function resume(){
+        if(!speaking || !isPaused) return;
+        window.speechSynthesis.resume();
+        isPaused = false;
+        setUIState('speaking');
+      }
+      function stop(){
+        window.speechSynthesis.cancel();
+        speaking=false;
+        isPaused=false;
+        setUIState('idle');
+        resetProgress();
+      }
 
       toggleBtn.addEventListener('click', ()=>{
         if(!speaking){
@@ -307,7 +332,7 @@
           speak();
           return;
         }
-        if(window.speechSynthesis.paused){
+        if(isPaused){
           resume();
         }else{
           pause();
@@ -322,7 +347,7 @@
           if(!speaking){
             resetProgress();
             speak();
-          }else if(window.speechSynthesis.paused){
+          }else if(isPaused){
             resume();
           }else{
             pause();
@@ -334,9 +359,12 @@
       // Обновляем состояние кнопок в зависимости от событий движка
       if(supportsSpeech){
         const syncState = () => {
+          if(!speaking) return;
           if(window.speechSynthesis.speaking){
-            setUIState(window.speechSynthesis.paused ? 'paused' : 'speaking');
-          } else {
+            setUIState(isPaused ? 'paused' : 'speaking');
+          } else if(!isPaused) {
+            speaking=false;
+            isPaused=false;
             setUIState('idle');
           }
         };
