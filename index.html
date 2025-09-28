@@ -54,16 +54,13 @@
       </div>
 
       <div class="buttons">
-        <button id="play" class="primary">▶ Пуск</button>
-        <button id="pause" class="ghost" disabled>⏸ Пауза</button>
-        <button id="resume" class="success" disabled>⏵ Продолжить</button>
-        <button id="stop" class="danger" disabled>■ Стоп</button>
+        <button id="toggle" class="primary">▶ Пуск</button>
       </div>
 
       <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
 
       <div class="footer">
-        <div class="pill">Горячие клавиши: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd> — пуск/стоп, <kbd>Space</kbd> — пауза/продолжить</div>
+        <div class="pill">Горячие клавиши: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd> — пуск/стоп, <kbd>Space</kbd> — пуск/пауза/продолжить</div>
         <div id="status">Готово</div>
       </div>
     </div>
@@ -76,16 +73,16 @@
       const voiceEl = document.getElementById('voice');
       const rateEl = document.getElementById('rate');
       const rateVal = document.getElementById('rateVal');
-      const playBtn = document.getElementById('play');
-      const pauseBtn = document.getElementById('pause');
-      const resumeBtn = document.getElementById('resume');
-      const stopBtn = document.getElementById('stop');
+      const toggleBtn = document.getElementById('toggle');
       const statusEl = document.getElementById('status');
       const bar = document.getElementById('bar');
       const unsupported = document.getElementById('unsupported');
 
       const supportsSpeech = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
-      if(!supportsSpeech){ unsupported.style.display='block'; }
+      if(!supportsSpeech){
+        unsupported.style.display='block';
+        toggleBtn.disabled = true;
+      }
 
       let voices = [];
       let queue = [];
@@ -241,13 +238,16 @@
       function setUIState(state){
         // states: idle, speaking, paused
         if(state==='idle'){
-          playBtn.disabled=false; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
+          toggleBtn.disabled=false;
+          toggleBtn.textContent='▶ Пуск';
           statusEl.textContent='Готово';
         }else if(state==='speaking'){
-          playBtn.disabled=true; pauseBtn.disabled=false; resumeBtn.disabled=true; stopBtn.disabled=false;
+          toggleBtn.disabled=false;
+          toggleBtn.textContent='⏸ Пауза';
           statusEl.textContent='Читает…';
         }else if(state==='paused'){
-          playBtn.disabled=true; pauseBtn.disabled=true; resumeBtn.disabled=false; stopBtn.disabled=false;
+          toggleBtn.disabled=false;
+          toggleBtn.textContent='⏵ Продолжить';
           statusEl.textContent='Пауза';
         }
       }
@@ -301,17 +301,32 @@
       function resume(){ if(speaking && window.speechSynthesis.paused){ window.speechSynthesis.resume(); setUIState('speaking'); } }
       function stop(){ window.speechSynthesis.cancel(); speaking=false; setUIState('idle'); resetProgress(); }
 
-      playBtn.addEventListener('click', ()=>{ resetProgress(); speak(); });
-      pauseBtn.addEventListener('click', pause);
-      resumeBtn.addEventListener('click', resume);
-      stopBtn.addEventListener('click', stop);
+      toggleBtn.addEventListener('click', ()=>{
+        if(!speaking){
+          resetProgress();
+          speak();
+          return;
+        }
+        if(window.speechSynthesis.paused){
+          resume();
+        }else{
+          pause();
+        }
+      });
 
       document.addEventListener('keydown', (e)=>{
         if((e.ctrlKey||e.metaKey) && e.key==='Enter'){
           if(speaking){ stop(); } else { resetProgress(); speak(); }
           e.preventDefault();
-        }else if(e.key===' ' && !e.target.closest('textarea') && speaking){
-          if(window.speechSynthesis.paused) resume(); else pause();
+        }else if(e.key===' ' && !e.target.closest('textarea')){
+          if(!speaking){
+            resetProgress();
+            speak();
+          }else if(window.speechSynthesis.paused){
+            resume();
+          }else{
+            pause();
+          }
           e.preventDefault();
         }
       });
