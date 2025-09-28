@@ -13,6 +13,7 @@
   h1 { margin: 0 0 8px; font-size: 20px; }
   .sub { margin: 0 0 12px; color: #444; font-size: 14px; }
   textarea { width: 100%; height: 300px; padding: 8px; border: 1px solid #bbb; border-radius: 4px; resize: vertical; font: inherit; line-height: 1.4; }
+  textarea[readonly] { background: #f8f8f8; color: #333; cursor: not-allowed; }
   .controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 10px 0; }
   .group { display: flex; align-items: center; gap: 8px; }
   label { font-size: 14px; color: #222; }
@@ -86,11 +87,76 @@
 
       let voices = [];
       let queue = [];
+      let chunkOffsets = [];
       let currentIndex = 0;
       let speaking = false;
       let isPaused = false;
       let totalChars = 0;
       let spokenChars = 0;
+
+      function setTextEditable(canEdit){
+        textEl.readOnly = !canEdit;
+      }
+
+      function highlightWord(start, end){
+        const length = textEl.value.length;
+        const from = Math.max(0, Math.min(length, start));
+        const to = Math.max(from, Math.min(length, end));
+        try {
+          textEl.setSelectionRange(from, to);
+        } catch (err) {
+          // игнорируем невозможность установить выделение
+        }
+      }
+
+      function highlightFromChunk(chunkIndex, position = 0, lengthHint = 0, syncProgress = true){
+        if(!queue.length) return;
+        const chunk = queue[chunkIndex] || '';
+        const base = chunkOffsets[chunkIndex] || 0;
+        if(!chunk){
+          highlightWord(base, base);
+          return;
+        }
+        let localPos = Math.max(0, Math.min(chunk.length, position || 0));
+        if(localPos >= chunk.length){
+          highlightWord(base + chunk.length, base + chunk.length);
+          if(syncProgress){
+            spokenChars = Math.min(totalChars, base + chunk.length);
+            updateProgress();
+          }
+          return;
+        }
+        let length = (typeof lengthHint === 'number' && lengthHint > 0) ? lengthHint : 0;
+
+        if(length <= 0){
+          let remainder = chunk.slice(localPos);
+          const leadingSpace = remainder.match(/^\s+/);
+          if(leadingSpace && leadingSpace[0]){
+            localPos = Math.min(chunk.length, localPos + leadingSpace[0].length);
+            remainder = chunk.slice(localPos);
+          }
+          const wordMatch = remainder.match(/^\S+/);
+          length = wordMatch ? wordMatch[0].length : Math.min(1, chunk.length - localPos);
+        }
+
+        const absoluteStart = base + localPos;
+        const safeLength = Math.max(1, length || 1);
+        const absoluteEnd = base + Math.min(chunk.length, localPos + safeLength);
+        highlightWord(absoluteStart, absoluteEnd);
+        if(syncProgress){
+          spokenChars = Math.min(totalChars, absoluteEnd);
+          updateProgress();
+        }
+      }
+
+      function clearHighlight(){
+        const len = textEl.value.length;
+        try {
+          textEl.setSelectionRange(len, len);
+        } catch (err) {
+          // игнорируем
+        }
+      }
 
       function populateVoiceOptions(langCode, preferredVoiceURI){
         if(!voices || !voices.length){
@@ -182,6 +248,12 @@
         rateVal.textContent = rateEl.value + '×';
       });
 
+      textEl.addEventListener('input', ()=>{
+        if(isPaused){
+          stop();
+        }
+      });
+
       function splitIntoChunks(text, max = 200){
         // Разбиваем по предложениям и собираем чанки не длиннее max.
         const sentences = text
@@ -242,18 +314,22 @@
           toggleBtn.disabled=false;
           toggleBtn.textContent='▶ Пуск';
           statusEl.textContent='Готово';
+          setTextEditable(true);
+          clearHighlight();
         }else if(state==='speaking'){
           toggleBtn.disabled=false;
           toggleBtn.textContent='⏸ Пауза';
           statusEl.textContent='Читает…';
+          setTextEditable(false);
         }else if(state==='paused'){
           toggleBtn.disabled=false;
           toggleBtn.textContent='⏵ Продолжить';
           statusEl.textContent='Пауза';
+          setTextEditable(true);
         }
       }
 
-      function resetProgress(){ bar.style.width='0%'; spokenChars=0; totalChars=0; }
+      function resetProgress(){ bar.style.width='0%'; spokenChars=0; totalChars=0; clearHighlight(); }
       function updateProgress(){ if(totalChars>0) bar.style.width = Math.min(100, (spokenChars/totalChars*100)).toFixed(1)+'%'; }
 
       function speak(){
@@ -263,8 +339,15 @@
 
         window.speechSynthesis.cancel();
         queue = splitIntoChunks(text, 220);
+        chunkOffsets = [];
+        let offsetAccumulator = 0;
+        queue.forEach((chunk, idx)=>{
+          chunkOffsets[idx] = offsetAccumulator;
+          offsetAccumulator += chunk.length;
+        });
         currentIndex = 0; speaking = true; isPaused = false;
-        totalChars = queue.join('').length; spokenChars = 0; updateProgress();
+        totalChars = offsetAccumulator;
+        spokenChars = 0; updateProgress();
 
         const voice = getSelectedVoice();
         const rate = parseFloat(rateEl.value) || 1;
@@ -276,9 +359,13 @@
           if(voice) utter.voice = voice;
           utter.lang = langEl.value; // задаём язык
           utter.rate = rate; // скорость
+          highlightFromChunk(currentIndex, 0, 0, false);
           utter.onend = () => {
             if(!speaking) return;
-            spokenChars += queue[currentIndex].length; updateProgress();
+            const chunkLen = queue[currentIndex] ? queue[currentIndex].length : 0;
+            const chunkTotal = (chunkOffsets[currentIndex] || 0) + chunkLen;
+            spokenChars = Math.min(totalChars, chunkTotal);
+            updateProgress();
             if(!isPaused){
               currentIndex++;
               speakNext();
@@ -287,6 +374,10 @@
           utter.onerror = (e) => {
             console.error('TTS error', e);
             if(!speaking) return;
+            const chunkLen = queue[currentIndex] ? queue[currentIndex].length : 0;
+            const chunkTotal = (chunkOffsets[currentIndex] || 0) + chunkLen;
+            spokenChars = Math.min(totalChars, chunkTotal);
+            updateProgress();
             if(!isPaused){
               currentIndex++;
               speakNext();
@@ -294,9 +385,9 @@
           };
           // Опционально, можно подстраивать прогресс по словам
           utter.onboundary = (ev)=>{
+            if(!speaking) return;
             if(ev.name==='word' || ev.charIndex!=null){
-              spokenChars = queue.slice(0,currentIndex).join('').length + (ev.charIndex||0);
-              updateProgress();
+              highlightFromChunk(currentIndex, ev.charIndex||0, ev.charLength||0);
             }
           };
           window.speechSynthesis.speak(utter);
