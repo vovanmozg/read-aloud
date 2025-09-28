@@ -1,41 +1,173 @@
 <!doctype html>
 <html lang="ru">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Читалка текста вслух</title>
   <style>
-  /* Примитивный, минимальный стиль */
-  * { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; background: #fff; }
-  .app { width: min(900px, 100%); margin: 0 auto; }
-  h1 { margin: 0 0 8px; font-size: 20px; }
-  .sub { margin: 0 0 12px; color: #444; font-size: 14px; }
-  textarea { width: 100%; height: 300px; padding: 8px; border: 1px solid #bbb; border-radius: 4px; resize: vertical; font: inherit; line-height: 1.4; }
-  textarea[readonly] { background: #f8f8f8; color: #333; cursor: not-allowed; }
-  .controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 10px 0; }
-  .group { display: flex; align-items: center; gap: 8px; }
-  label { font-size: 14px; color: #222; }
-  select { min-width: 140px; padding: 6px 8px; border: 1px solid #bbb; border-radius: 4px; background: #fff; font: inherit; }
-  input[type="range"] { width: 180px; }
-  .buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
-  button { padding: 8px 12px; border: 1px solid #bbb; background: #f7f7f7; border-radius: 4px; font: inherit; cursor: pointer; }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .progress { height: 6px; border: 1px solid #bbb; border-radius: 3px; background: #f2f2f2; margin-top: 8px; overflow: hidden; }
-  .bar { height: 100%; width: 0%; background: #888; }
-  .footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; color: #444; font-size: 12px; }
-  .unsupported { border: 1px dashed #bbb; padding: 8px; border-radius: 4px; background: #fafafa; color: #222; margin: 8px 0; }
-  @media (max-width: 560px) { .controls { flex-direction: column; align-items: flex-start; } input[type="range"], select { width: 100%; } }
-</style>
+    /* Примитивный, минимальный стиль */
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: #111;
+      background: #fff;
+    }
+
+    .app {
+      width: min(900px, 100%);
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    .sub {
+      margin: 0 0 12px;
+      color: #444;
+      font-size: 14px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 8px;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      resize: vertical;
+      font: inherit;
+      line-height: 1.4;
+    }
+
+    textarea[readonly] {
+      background: #f8f8f8;
+      color: #333;
+      cursor: not-allowed;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      align-items: center;
+      margin: 10px 0;
+    }
+
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 14px;
+      color: #222;
+    }
+
+    select {
+      min-width: 140px;
+      padding: 6px 8px;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      background: #fff;
+      font: inherit;
+    }
+
+    input[type="range"] {
+      width: 180px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 8px 0;
+    }
+
+    button {
+      padding: 8px 12px;
+      border: 1px solid #bbb;
+      background: #f7f7f7;
+      border-radius: 4px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .progress {
+      height: 6px;
+      border: 1px solid #bbb;
+      border-radius: 3px;
+      background: #f2f2f2;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: #888;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      color: #444;
+      font-size: 12px;
+    }
+
+    .unsupported {
+      border: 1px dashed #bbb;
+      padding: 8px;
+      border-radius: 4px;
+      background: #fafafa;
+      color: #222;
+      margin: 8px 0;
+    }
+
+    @media (max-width: 560px) {
+      .controls {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      input[type="range"],
+      select {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
+
 <body>
   <div class="app">
     <div class="card">
       <h1>Читалка текста вслух</h1>
-      <p class="sub">Вставьте текст, выберите язык и скорость, затем нажмите <strong>Пуск</strong>. Работает на базе <em>Web Speech API</em> (поддерживается в большинстве современных браузеров).</p>
+      <p class="sub">Вставьте текст, выберите язык и скорость, затем нажмите <strong>Пуск</strong>. Работает на базе
+        <em>Web Speech API</em> (поддерживается в большинстве современных браузеров).
+      </p>
 
-      <div id="unsupported" class="unsupported" style="display:none">Похоже, ваш браузер не поддерживает синтез речи (<code>speechSynthesis</code>). Попробуйте Chrome, Edge или Safari.</div>
+      <div id="unsupported" class="unsupported" style="display:none">Похоже, ваш браузер не поддерживает синтез речи
+        (<code>speechSynthesis</code>). Попробуйте Chrome, Edge или Safari.</div>
 
       <textarea id="text" placeholder="Вставьте или напишите текст для чтения…"></textarea>
 
@@ -58,17 +190,21 @@
         <button id="toggle" class="primary">▶ Пуск</button>
       </div>
 
-      <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+      <div class="progress" aria-hidden="true">
+        <div class="bar" id="bar"></div>
+      </div>
 
       <div class="footer">
-        <div class="pill">Горячие клавиши: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd> — пуск/стоп, <kbd>Space</kbd> — пуск/пауза/продолжить</div>
+        <div class="pill">Горячие клавиши: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd> — пуск/стоп,
+          <kbd>Space</kbd> — пуск/пауза/продолжить
+        </div>
         <div id="status">Готово</div>
       </div>
     </div>
   </div>
 
   <script>
-    (function(){
+    (function () {
       const textEl = document.getElementById('text');
       const langEl = document.getElementById('lang');
       const voiceEl = document.getElementById('voice');
@@ -80,8 +216,8 @@
       const unsupported = document.getElementById('unsupported');
 
       const supportsSpeech = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
-      if(!supportsSpeech){
-        unsupported.style.display='block';
+      if (!supportsSpeech) {
+        unsupported.style.display = 'block';
         toggleBtn.disabled = true;
       }
 
@@ -94,11 +230,11 @@
       let totalChars = 0;
       let spokenChars = 0;
 
-      function setTextEditable(canEdit){
+      function setTextEditable(canEdit) {
         textEl.readOnly = !canEdit;
       }
 
-      function highlightWord(start, end){
+      function highlightWord(start, end) {
         const length = textEl.value.length;
         const from = Math.max(0, Math.min(length, start));
         const to = Math.max(from, Math.min(length, end));
@@ -109,18 +245,18 @@
         }
       }
 
-      function highlightFromChunk(chunkIndex, position = 0, lengthHint = 0, syncProgress = true){
-        if(!queue.length) return;
+      function highlightFromChunk(chunkIndex, position = 0, lengthHint = 0, syncProgress = true) {
+        if (!queue.length) return;
         const chunk = queue[chunkIndex] || '';
         const base = chunkOffsets[chunkIndex] || 0;
-        if(!chunk){
+        if (!chunk) {
           highlightWord(base, base);
           return;
         }
         let localPos = Math.max(0, Math.min(chunk.length, position || 0));
-        if(localPos >= chunk.length){
+        if (localPos >= chunk.length) {
           highlightWord(base + chunk.length, base + chunk.length);
-          if(syncProgress){
+          if (syncProgress) {
             spokenChars = Math.min(totalChars, base + chunk.length);
             updateProgress();
           }
@@ -128,10 +264,10 @@
         }
         let length = (typeof lengthHint === 'number' && lengthHint > 0) ? lengthHint : 0;
 
-        if(length <= 0){
+        if (length <= 0) {
           let remainder = chunk.slice(localPos);
           const leadingSpace = remainder.match(/^\s+/);
-          if(leadingSpace && leadingSpace[0]){
+          if (leadingSpace && leadingSpace[0]) {
             localPos = Math.min(chunk.length, localPos + leadingSpace[0].length);
             remainder = chunk.slice(localPos);
           }
@@ -143,13 +279,13 @@
         const safeLength = Math.max(1, length || 1);
         const absoluteEnd = base + Math.min(chunk.length, localPos + safeLength);
         highlightWord(absoluteStart, absoluteEnd);
-        if(syncProgress){
+        if (syncProgress) {
           spokenChars = Math.min(totalChars, absoluteEnd);
           updateProgress();
         }
       }
 
-      function clearHighlight(){
+      function clearHighlight() {
         const len = textEl.value.length;
         try {
           textEl.setSelectionRange(len, len);
@@ -158,24 +294,24 @@
         }
       }
 
-      function populateVoiceOptions(langCode, preferredVoiceURI){
-        if(!voices || !voices.length){
+      function populateVoiceOptions(langCode, preferredVoiceURI) {
+        if (!voices || !voices.length) {
           voiceEl.innerHTML = '';
           voiceEl.disabled = true;
           return;
         }
 
         const base = langCode ? langCode.split('-')[0] : '';
-        const options = voices.filter(v=>{
-          if(!langCode) return true;
-          if(v.lang === langCode) return true;
-          if(base && v.lang && v.lang.startsWith(base+'-')) return true;
+        const options = voices.filter(v => {
+          if (!langCode) return true;
+          if (v.lang === langCode) return true;
+          if (base && v.lang && v.lang.startsWith(base + '-')) return true;
           return false;
         });
 
         voiceEl.innerHTML = '';
 
-        if(!options.length){
+        if (!options.length) {
           const opt = document.createElement('option');
           opt.value = '';
           opt.textContent = 'По умолчанию браузера';
@@ -185,13 +321,13 @@
           return;
         }
 
-        options.sort((a,b)=>{
-          if(a.default && !b.default) return -1;
-          if(!a.default && b.default) return 1;
+        options.sort((a, b) => {
+          if (a.default && !b.default) return -1;
+          if (!a.default && b.default) return 1;
           return a.name.localeCompare(b.name);
         });
 
-        options.forEach(voice=>{
+        options.forEach(voice => {
           const opt = document.createElement('option');
           opt.value = voice.voiceURI;
           opt.textContent = `${voice.name} (${voice.lang})${voice.default ? ' (по умолчанию)' : ''}`;
@@ -199,29 +335,29 @@
           voiceEl.appendChild(opt);
         });
 
-        const fallback = options.find(v=>v.voiceURI===preferredVoiceURI)
-          || options.find(v=>v.default && (!langCode || v.lang === langCode || v.lang.startsWith(base+'-')))
+        const fallback = options.find(v => v.voiceURI === preferredVoiceURI)
+          || options.find(v => v.default && (!langCode || v.lang === langCode || v.lang.startsWith(base + '-')))
           || options[0];
         voiceEl.disabled = false;
-        if(fallback) voiceEl.value = fallback.voiceURI;
+        if (fallback) voiceEl.value = fallback.voiceURI;
       }
 
-      function loadVoices(){
+      function loadVoices() {
         voices = window.speechSynthesis.getVoices();
-        if(!voices || !voices.length) return;
+        if (!voices || !voices.length) return;
         const previousLang = langEl.value;
         const previousVoice = voiceEl.value;
         // Список уникальных языков, предпочтительно с локалью (ru-RU, en-US и т.д.)
         const langs = new Map();
-        voices.forEach(v=>{ if(!langs.has(v.lang)) langs.set(v.lang, v); });
-        const preferred = ['ru-RU','uk-UA','kk-KZ','en-US','en-GB','de-DE','fr-FR','es-ES','it-IT','pl-PL','pt-BR','tr-TR'];
-        const sorted = Array.from(langs.keys()).sort((a,b)=>{
+        voices.forEach(v => { if (!langs.has(v.lang)) langs.set(v.lang, v); });
+        const preferred = ['ru-RU', 'uk-UA', 'kk-KZ', 'en-US', 'en-GB', 'de-DE', 'fr-FR', 'es-ES', 'it-IT', 'pl-PL', 'pt-BR', 'tr-TR'];
+        const sorted = Array.from(langs.keys()).sort((a, b) => {
           const ia = preferred.indexOf(a), ib = preferred.indexOf(b);
-          if(ia!==-1 && ib!==-1) return ia-ib;
-          if(ia!==-1) return -1; if(ib!==-1) return 1; return a.localeCompare(b);
+          if (ia !== -1 && ib !== -1) return ia - ib;
+          if (ia !== -1) return -1; if (ib !== -1) return 1; return a.localeCompare(b);
         });
         langEl.innerHTML = '';
-        sorted.forEach(code=>{
+        sorted.forEach(code => {
           const opt = document.createElement('option');
           opt.value = code; opt.textContent = code;
           langEl.appendChild(opt);
@@ -233,36 +369,36 @@
         populateVoiceOptions(selectedLang, selectedLang === previousLang ? previousVoice : undefined);
       }
 
-      if(supportsSpeech){
+      if (supportsSpeech) {
         // Chrome подгружает голоса async
         window.speechSynthesis.onvoiceschanged = loadVoices;
         // и сразу пробуем
         loadVoices();
       }
 
-      langEl.addEventListener('change', ()=>{
+      langEl.addEventListener('change', () => {
         populateVoiceOptions(langEl.value, voiceEl.value);
       });
 
-      rateEl.addEventListener('input', ()=>{
+      rateEl.addEventListener('input', () => {
         rateVal.textContent = rateEl.value + '×';
       });
 
-      textEl.addEventListener('input', ()=>{
-        if(isPaused){
+      textEl.addEventListener('input', () => {
+        if (isPaused) {
           stop();
         }
       });
 
-      function splitIntoChunks(text, max = 200){
+      function splitIntoChunks(text, max = 200) {
         // Разбиваем по предложениям и собираем чанки не длиннее max.
         const sentences = text
-          .replace(/\s+/g,' ') // нормализуем пробелы
+          .replace(/\s+/g, ' ') // нормализуем пробелы
           .split(/([.!?…]+\s|\n+)/g) // оставляем разделители
-          .reduce((acc, part, i, arr)=>{
-            if(i%2===0){ // текст
-              const sep = arr[i+1] || '';
-              acc.push((part+sep).trim());
+          .reduce((acc, part, i, arr) => {
+            if (i % 2 === 0) { // текст
+              const sep = arr[i + 1] || '';
+              acc.push((part + sep).trim());
             }
             return acc;
           }, [])
@@ -270,78 +406,78 @@
 
         const chunks = [];
         let buf = '';
-        for(const s of sentences.length?sentences:[text]){
-          if((buf + ' ' + s).trim().length <= max){
-            buf = (buf?buf+' ':'') + s;
-          }else{
-            if(buf) chunks.push(buf);
-            if(s.length <= max){
+        for (const s of sentences.length ? sentences : [text]) {
+          if ((buf + ' ' + s).trim().length <= max) {
+            buf = (buf ? buf + ' ' : '') + s;
+          } else {
+            if (buf) chunks.push(buf);
+            if (s.length <= max) {
               buf = s;
-            }else{
+            } else {
               // жёстко режем длинные куски
-              for(let i=0;i<s.length;i+=max){
-                chunks.push(s.slice(i, i+max));
+              for (let i = 0; i < s.length; i += max) {
+                chunks.push(s.slice(i, i + max));
               }
               buf = '';
             }
           }
         }
-        if(buf) chunks.push(buf);
+        if (buf) chunks.push(buf);
         return chunks;
       }
 
-      function getVoiceByLang(langCode){
-        if(!voices || !voices.length) return null;
+      function getVoiceByLang(langCode) {
+        if (!voices || !voices.length) return null;
         // точное совпадение ru-RU, иначе по языку ru-*
-        const exact = voices.find(v=>v.lang===langCode);
-        if(exact) return exact;
+        const exact = voices.find(v => v.lang === langCode);
+        if (exact) return exact;
         const prefix = langCode.split('-')[0];
-        return voices.find(v=>v.lang.startsWith(prefix)) || null;
+        return voices.find(v => v.lang.startsWith(prefix)) || null;
       }
 
-      function getSelectedVoice(){
-        if(!voices || !voices.length) return null;
-        if(voiceEl.value){
-          const byUri = voices.find(v=>v.voiceURI===voiceEl.value);
-          if(byUri) return byUri;
+      function getSelectedVoice() {
+        if (!voices || !voices.length) return null;
+        if (voiceEl.value) {
+          const byUri = voices.find(v => v.voiceURI === voiceEl.value);
+          if (byUri) return byUri;
         }
         return getVoiceByLang(langEl.value);
       }
 
-      function setUIState(state){
+      function setUIState(state) {
         // states: idle, speaking, paused
-        if(state==='idle'){
-          toggleBtn.disabled=false;
-          toggleBtn.textContent='▶ Пуск';
-          statusEl.textContent='Готово';
+        if (state === 'idle') {
+          toggleBtn.disabled = false;
+          toggleBtn.textContent = '▶ Пуск';
+          statusEl.textContent = 'Готово';
           setTextEditable(true);
           clearHighlight();
-        }else if(state==='speaking'){
-          toggleBtn.disabled=false;
-          toggleBtn.textContent='⏸ Пауза';
-          statusEl.textContent='Читает…';
+        } else if (state === 'speaking') {
+          toggleBtn.disabled = false;
+          toggleBtn.textContent = '⏸ Пауза';
+          statusEl.textContent = 'Читает…';
           setTextEditable(false);
-        }else if(state==='paused'){
-          toggleBtn.disabled=false;
-          toggleBtn.textContent='⏵ Продолжить';
-          statusEl.textContent='Пауза';
+        } else if (state === 'paused') {
+          toggleBtn.disabled = false;
+          toggleBtn.textContent = '⏵ Продолжить';
+          statusEl.textContent = 'Пауза';
           setTextEditable(true);
         }
       }
 
-      function resetProgress(){ bar.style.width='0%'; spokenChars=0; totalChars=0; clearHighlight(); }
-      function updateProgress(){ if(totalChars>0) bar.style.width = Math.min(100, (spokenChars/totalChars*100)).toFixed(1)+'%'; }
+      function resetProgress() { bar.style.width = '0%'; spokenChars = 0; totalChars = 0; clearHighlight(); }
+      function updateProgress() { if (totalChars > 0) bar.style.width = Math.min(100, (spokenChars / totalChars * 100)).toFixed(1) + '%'; }
 
-      function speak(){
+      function speak() {
         const text = textEl.value.trim();
-        if(!text){ textEl.focus(); return; }
-        if(!supportsSpeech){ return; }
+        if (!text) { textEl.focus(); return; }
+        if (!supportsSpeech) { return; }
 
         window.speechSynthesis.cancel();
         queue = splitIntoChunks(text, 220);
         chunkOffsets = [];
         let offsetAccumulator = 0;
-        queue.forEach((chunk, idx)=>{
+        queue.forEach((chunk, idx) => {
           chunkOffsets[idx] = offsetAccumulator;
           offsetAccumulator += chunk.length;
         });
@@ -352,42 +488,43 @@
         const voice = getSelectedVoice();
         const rate = parseFloat(rateEl.value) || 1;
 
-        function speakNext(){
-          if(currentIndex >= queue.length){
-            speaking=false; isPaused=false; setUIState('idle'); return; }
+        function speakNext() {
+          if (currentIndex >= queue.length) {
+            speaking = false; isPaused = false; setUIState('idle'); return;
+          }
           const utter = new SpeechSynthesisUtterance(queue[currentIndex]);
-          if(voice) utter.voice = voice;
+          if (voice) utter.voice = voice;
           utter.lang = langEl.value; // задаём язык
           utter.rate = rate; // скорость
           highlightFromChunk(currentIndex, 0, 0, false);
           utter.onend = () => {
-            if(!speaking) return;
+            if (!speaking) return;
             const chunkLen = queue[currentIndex] ? queue[currentIndex].length : 0;
             const chunkTotal = (chunkOffsets[currentIndex] || 0) + chunkLen;
             spokenChars = Math.min(totalChars, chunkTotal);
             updateProgress();
-            if(!isPaused){
+            if (!isPaused) {
               currentIndex++;
               speakNext();
             }
           };
           utter.onerror = (e) => {
             console.error('TTS error', e);
-            if(!speaking) return;
+            if (!speaking) return;
             const chunkLen = queue[currentIndex] ? queue[currentIndex].length : 0;
             const chunkTotal = (chunkOffsets[currentIndex] || 0) + chunkLen;
             spokenChars = Math.min(totalChars, chunkTotal);
             updateProgress();
-            if(!isPaused){
+            if (!isPaused) {
               currentIndex++;
               speakNext();
             }
           };
           // Опционально, можно подстраивать прогресс по словам
-          utter.onboundary = (ev)=>{
-            if(!speaking) return;
-            if(ev.name==='word' || ev.charIndex!=null){
-              highlightFromChunk(currentIndex, ev.charIndex||0, ev.charLength||0);
+          utter.onboundary = (ev) => {
+            if (!speaking) return;
+            if (ev.name === 'word' || ev.charIndex != null) {
+              highlightFromChunk(currentIndex, ev.charIndex || 0, ev.charLength || 0);
             }
           };
           window.speechSynthesis.speak(utter);
@@ -397,50 +534,50 @@
         speakNext();
       }
 
-      function pause(){
-        if(!speaking || isPaused) return;
+      function pause() {
+        if (!speaking || isPaused) return;
         window.speechSynthesis.pause();
         isPaused = true;
         setUIState('paused');
       }
-      function resume(){
-        if(!speaking || !isPaused) return;
+      function resume() {
+        if (!speaking || !isPaused) return;
         window.speechSynthesis.resume();
         isPaused = false;
         setUIState('speaking');
       }
-      function stop(){
+      function stop() {
         window.speechSynthesis.cancel();
-        speaking=false;
-        isPaused=false;
+        speaking = false;
+        isPaused = false;
         setUIState('idle');
         resetProgress();
       }
 
-      toggleBtn.addEventListener('click', ()=>{
-        if(!speaking){
+      toggleBtn.addEventListener('click', () => {
+        if (!speaking) {
           resetProgress();
           speak();
           return;
         }
-        if(isPaused){
+        if (isPaused) {
           resume();
-        }else{
+        } else {
           pause();
         }
       });
 
-      document.addEventListener('keydown', (e)=>{
-        if((e.ctrlKey||e.metaKey) && e.key==='Enter'){
-          if(speaking){ stop(); } else { resetProgress(); speak(); }
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          if (speaking) { stop(); } else { resetProgress(); speak(); }
           e.preventDefault();
-        }else if(e.key===' ' && !e.target.closest('textarea')){
-          if(!speaking){
+        } else if (e.key === ' ' && !e.target.closest('textarea')) {
+          if (!speaking) {
             resetProgress();
             speak();
-          }else if(isPaused){
+          } else if (isPaused) {
             resume();
-          }else{
+          } else {
             pause();
           }
           e.preventDefault();
@@ -448,14 +585,14 @@
       });
 
       // Обновляем состояние кнопок в зависимости от событий движка
-      if(supportsSpeech){
+      if (supportsSpeech) {
         const syncState = () => {
-          if(!speaking) return;
-          if(window.speechSynthesis.speaking){
+          if (!speaking) return;
+          if (window.speechSynthesis.speaking) {
             setUIState(isPaused ? 'paused' : 'speaking');
-          } else if(!isPaused) {
-            speaking=false;
-            isPaused=false;
+          } else if (!isPaused) {
+            speaking = false;
+            isPaused = false;
             setUIState('idle');
           }
         };
@@ -467,4 +604,5 @@
     })();
   </script>
 </body>
+
 </html>
