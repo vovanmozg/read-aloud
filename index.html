@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Читалка текста вслух</title>
+  <style>
+  /* Примитивный, минимальный стиль */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; padding: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: #111; background: #fff; }
+  .app { width: min(900px, 100%); margin: 0 auto; }
+  h1 { margin: 0 0 8px; font-size: 20px; }
+  .sub { margin: 0 0 12px; color: #444; font-size: 14px; }
+  textarea { width: 100%; height: 300px; padding: 8px; border: 1px solid #bbb; border-radius: 4px; resize: vertical; font: inherit; line-height: 1.4; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 10px 0; }
+  .group { display: flex; align-items: center; gap: 8px; }
+  label { font-size: 14px; color: #222; }
+  select { min-width: 140px; padding: 6px 8px; border: 1px solid #bbb; border-radius: 4px; background: #fff; font: inherit; }
+  input[type="range"] { width: 180px; }
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  button { padding: 8px 12px; border: 1px solid #bbb; background: #f7f7f7; border-radius: 4px; font: inherit; cursor: pointer; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .progress { height: 6px; border: 1px solid #bbb; border-radius: 3px; background: #f2f2f2; margin-top: 8px; overflow: hidden; }
+  .bar { height: 100%; width: 0%; background: #888; }
+  .footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; color: #444; font-size: 12px; }
+  .unsupported { border: 1px dashed #bbb; padding: 8px; border-radius: 4px; background: #fafafa; color: #222; margin: 8px 0; }
+  @media (max-width: 560px) { .controls { flex-direction: column; align-items: flex-start; } input[type="range"], select { width: 100%; } }
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <h1>Читалка текста вслух</h1>
+      <p class="sub">Вставьте текст, выберите язык и скорость, затем нажмите <strong>Пуск</strong>. Работает на базе <em>Web Speech API</em> (поддерживается в большинстве современных браузеров).</p>
+
+      <div id="unsupported" class="unsupported" style="display:none">Похоже, ваш браузер не поддерживает синтез речи (<code>speechSynthesis</code>). Попробуйте Chrome, Edge или Safari.</div>
+
+      <textarea id="text" placeholder="Вставьте или напишите текст для чтения…"></textarea>
+
+      <div class="controls">
+        <div class="group">
+          <label for="lang">Язык:</label>
+          <select id="lang" title="Выбор языка"></select>
+        </div>
+        <div class="group">
+          <label for="rate">Скорость: <span id="rateVal">1.0×</span></label>
+          <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1" />
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="play" class="primary">▶ Пуск</button>
+        <button id="pause" class="ghost" disabled>⏸ Пауза</button>
+        <button id="resume" class="success" disabled>⏵ Продолжить</button>
+        <button id="stop" class="danger" disabled>■ Стоп</button>
+      </div>
+
+      <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+
+      <div class="footer">
+        <div class="pill">Горячие клавиши: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Enter</kbd> — пуск/стоп, <kbd>Space</kbd> — пауза/продолжить</div>
+        <div id="status">Готово</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const textEl = document.getElementById('text');
+      const langEl = document.getElementById('lang');
+      const rateEl = document.getElementById('rate');
+      const rateVal = document.getElementById('rateVal');
+      const playBtn = document.getElementById('play');
+      const pauseBtn = document.getElementById('pause');
+      const resumeBtn = document.getElementById('resume');
+      const stopBtn = document.getElementById('stop');
+      const statusEl = document.getElementById('status');
+      const bar = document.getElementById('bar');
+      const unsupported = document.getElementById('unsupported');
+
+      const supportsSpeech = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+      if(!supportsSpeech){ unsupported.style.display='block'; }
+
+      let voices = [];
+      let queue = [];
+      let currentIndex = 0;
+      let speaking = false;
+      let totalChars = 0;
+      let spokenChars = 0;
+
+      function loadVoices(){
+        voices = window.speechSynthesis.getVoices();
+        if(!voices || !voices.length) return;
+        // Список уникальных языков, предпочтительно с локалью (ru-RU, en-US и т.д.)
+        const langs = new Map();
+        voices.forEach(v=>{ if(!langs.has(v.lang)) langs.set(v.lang, v); });
+        const preferred = ['ru-RU','uk-UA','kk-KZ','en-US','en-GB','de-DE','fr-FR','es-ES','it-IT','pl-PL','pt-BR','tr-TR'];
+        const sorted = Array.from(langs.keys()).sort((a,b)=>{
+          const ia = preferred.indexOf(a), ib = preferred.indexOf(b);
+          if(ia!==-1 && ib!==-1) return ia-ib;
+          if(ia!==-1) return -1; if(ib!==-1) return 1; return a.localeCompare(b);
+        });
+        langEl.innerHTML = '';
+        sorted.forEach(code=>{
+          const opt = document.createElement('option');
+          opt.value = code; opt.textContent = code;
+          langEl.appendChild(opt);
+        });
+        // Выберем язык интерфейса, если доступен
+        const ui = navigator.language || 'ru-RU';
+        const idx = sorted.indexOf(ui);
+        langEl.value = idx>=0 ? ui : (sorted.includes('ru-RU') ? 'ru-RU' : sorted[0]);
+      }
+
+      if(supportsSpeech){
+        // Chrome подгружает голоса async
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        // и сразу пробуем
+        loadVoices();
+      }
+
+      rateEl.addEventListener('input', ()=>{
+        rateVal.textContent = rateEl.value + '×';
+      });
+
+      function splitIntoChunks(text, max = 200){
+        // Разбиваем по предложениям и собираем чанки не длиннее max.
+        const sentences = text
+          .replace(/\s+/g,' ') // нормализуем пробелы
+          .split(/([.!?…]+\s|\n+)/g) // оставляем разделители
+          .reduce((acc, part, i, arr)=>{
+            if(i%2===0){ // текст
+              const sep = arr[i+1] || '';
+              acc.push((part+sep).trim());
+            }
+            return acc;
+          }, [])
+          .filter(Boolean);
+
+        const chunks = [];
+        let buf = '';
+        for(const s of sentences.length?sentences:[text]){
+          if((buf + ' ' + s).trim().length <= max){
+            buf = (buf?buf+' ':'') + s;
+          }else{
+            if(buf) chunks.push(buf);
+            if(s.length <= max){
+              buf = s;
+            }else{
+              // жёстко режем длинные куски
+              for(let i=0;i<s.length;i+=max){
+                chunks.push(s.slice(i, i+max));
+              }
+              buf = '';
+            }
+          }
+        }
+        if(buf) chunks.push(buf);
+        return chunks;
+      }
+
+      function getVoiceByLang(langCode){
+        if(!voices || !voices.length) return null;
+        // точное совпадение ru-RU, иначе по языку ru-*
+        const exact = voices.find(v=>v.lang===langCode);
+        if(exact) return exact;
+        const prefix = langCode.split('-')[0];
+        return voices.find(v=>v.lang.startsWith(prefix)) || null;
+      }
+
+      function setUIState(state){
+        // states: idle, speaking, paused
+        if(state==='idle'){
+          playBtn.disabled=false; pauseBtn.disabled=true; resumeBtn.disabled=true; stopBtn.disabled=true;
+          statusEl.textContent='Готово';
+        }else if(state==='speaking'){
+          playBtn.disabled=true; pauseBtn.disabled=false; resumeBtn.disabled=true; stopBtn.disabled=false;
+          statusEl.textContent='Читает…';
+        }else if(state==='paused'){
+          playBtn.disabled=true; pauseBtn.disabled=true; resumeBtn.disabled=false; stopBtn.disabled=false;
+          statusEl.textContent='Пауза';
+        }
+      }
+
+      function resetProgress(){ bar.style.width='0%'; spokenChars=0; totalChars=0; }
+      function updateProgress(){ if(totalChars>0) bar.style.width = Math.min(100, (spokenChars/totalChars*100)).toFixed(1)+'%'; }
+
+      function speak(){
+        const text = textEl.value.trim();
+        if(!text){ textEl.focus(); return; }
+        if(!supportsSpeech){ return; }
+
+        window.speechSynthesis.cancel();
+        queue = splitIntoChunks(text, 220);
+        currentIndex = 0; speaking = true;
+        totalChars = queue.join('').length; spokenChars = 0; updateProgress();
+
+        const voice = getVoiceByLang(langEl.value);
+        const rate = parseFloat(rateEl.value) || 1;
+
+        function speakNext(){
+          if(currentIndex >= queue.length){
+            speaking=false; setUIState('idle'); return; }
+          const utter = new SpeechSynthesisUtterance(queue[currentIndex]);
+          if(voice) utter.voice = voice;
+          utter.lang = langEl.value; // задаём язык
+          utter.rate = rate; // скорость
+          utter.onend = () => {
+            spokenChars += queue[currentIndex].length; updateProgress();
+            currentIndex++; speakNext();
+          };
+          utter.onerror = (e) => {
+            console.error('TTS error', e);
+            currentIndex++; speakNext();
+          };
+          // Опционально, можно подстраивать прогресс по словам
+          utter.onboundary = (ev)=>{
+            if(ev.name==='word' || ev.charIndex!=null){
+              spokenChars = queue.slice(0,currentIndex).join('').length + (ev.charIndex||0);
+              updateProgress();
+            }
+          };
+          window.speechSynthesis.speak(utter);
+        }
+
+        setUIState('speaking');
+        speakNext();
+      }
+
+      function pause(){ if(speaking && !window.speechSynthesis.paused){ window.speechSynthesis.pause(); setUIState('paused'); } }
+      function resume(){ if(speaking && window.speechSynthesis.paused){ window.speechSynthesis.resume(); setUIState('speaking'); } }
+      function stop(){ window.speechSynthesis.cancel(); speaking=false; setUIState('idle'); resetProgress(); }
+
+      playBtn.addEventListener('click', ()=>{ resetProgress(); speak(); });
+      pauseBtn.addEventListener('click', pause);
+      resumeBtn.addEventListener('click', resume);
+      stopBtn.addEventListener('click', stop);
+
+      document.addEventListener('keydown', (e)=>{
+        if((e.ctrlKey||e.metaKey) && e.key==='Enter'){
+          if(speaking){ stop(); } else { resetProgress(); speak(); }
+          e.preventDefault();
+        }else if(e.key===' ' && !e.target.closest('textarea') && speaking){
+          if(window.speechSynthesis.paused) resume(); else pause();
+          e.preventDefault();
+        }
+      });
+
+      // Обновляем состояние кнопок в зависимости от событий движка
+      if(supportsSpeech){
+        const syncState = () => {
+          if(window.speechSynthesis.speaking){
+            setUIState(window.speechSynthesis.paused ? 'paused' : 'speaking');
+          } else {
+            setUIState('idle');
+          }
+        };
+        setInterval(syncState, 300);
+      }
+
+      // Инициализация
+      setUIState('idle');
+    })();
+  </script>
+</body>
+</html>
